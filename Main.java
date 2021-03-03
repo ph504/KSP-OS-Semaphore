@@ -35,10 +35,16 @@ public class Main{
 }
 
 class AssistantChef{
-
-    AssistantChef(Set<String> sandwhichIngs){
+	String currentIngredient;
+	static chefAssistant = new AssistantChef();
+	private int makingSpeed = 5; // number of ingredients per second
+	private AssistantChef(){}
+	
+    createIngredient(){
 
     }
+
+
 }
 
 class Chef{
