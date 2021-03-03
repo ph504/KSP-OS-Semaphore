@@ -1,50 +1,77 @@
 import java.util.*;
 public class Main{
-	public static void main (String [] args){
-		System.out.println("Hello world!");
-	}
+    public static void main (String [] args){
+        System.out.println("Hello world!");
+    }
 
 
-	public static initializeRestaurant(String [] args){
-		if(args.length>0){
+    public static void initializeRestaurant(String [] args){
+        if(args != null)
+            if(args.length>0){
+                // if there was to be input? I mean it can
+            }
+            else{
 
-		}
-		else{
-			for(int i=0; i<2; ++i){
 
-				String name = "Ramsy Gordon";
-				Map<Ingredient,Integer> reqIng =  new HashMap<Ingredient,Integer>(); // required ingredients.
-				ingredients.add("")...
-				Chef ramsy = new Chef(name, reqIng);
-			}
-		}
-	}
+                Map<Ingredient, Integer>reqIng = new HashMap<>();
+
+                reqIng.put(new Ingredient("Goosht"),1);
+                reqIng.put(new Ingredient("Goje"), 2);
+                reqIng.put(new Ingredient("Piaz"), 1);
+                reqIng.put(new Ingredient("Ketchup"),2);
+                Chef ramsy = new Chef("Gordon Ramsy", reqIng);
+
+                reqIng.clear();
+                reqIng.put(new Ingredient("Goosht"), 2);
+                reqIng.put(new Ingredient("Piaz"), 3);
+                reqIng.put(new Ingredient("Ketchup"), 2);
+                reqIng.put(new Ingredient("Mustard"), 2);
+                Chef oliver = new Chef("Jamie Oliver", reqIng);
+
+
+
+            }
+    }
 }
 
 class AssistantChef{
-	
-	
-	AssistantChef(Set<String> sandwhichIngs){
 
-	}
+    AssistantChef(Set<String> sandwhichIngs){
+
+    }
 }
 
 class Chef{
-	String name;
-	private final Map<Ingredient, Integer> reqNoIng = new HashSet<String>(); // required number of ingredients.
+    String name;
+    // required number of ingredients.
+    private final Map<Ingredient, Integer> reqNoIng = new HashMap<>();
 
-	Chef(String name, ingredients){
+    // the name of the chef and required number of ingredients.
+    Chef(String name, Map<Ingredient, Integer> ingredients){
+        this.name = name;
+        reqNoIng.putAll(ingredients);
+    }
 
-	}
 
+    @Override
+    public String toString() {
+        return name;
+    }
 }
 
 class Ingredient{ // CS
-	final static Map<Ingredient, Integer> giveIngGetCount = new HashMap<String, Integer>(); // give ingredient's name and get the number of available ingredients.	
-	String name;
+    String name;
+    // give ingredient's name and get the number of available ingredients.
+    final static Map<String, Integer> giveIngGetCount = new HashMap<String, Integer>();
 
-	@override
-	hash(){
-		return name.hash();
-	}
+    Ingredient(String name){
+        this.name = name;
+        giveIngGetCount.put(name,0);
+    }
+
+
+    @Override
+    public String toString() {
+        return name;
+    }
 }
