@@ -46,6 +46,8 @@ public class Main{
     }
 }
 
+import java.util.*;
+
 class AssistantChef extends Thread {
 
     static AssistantChef chefAssistant = new AssistantChef(); // singleton pattern.
@@ -60,6 +62,14 @@ class AssistantChef extends Thread {
     private int offset = 1;
     // the rate of making ingredients (number of ingredients made per second).
     private int makingSpeed = 5;
+    // time which it takes to switch ingredients.
+    private int switchIngTime = 2;
+    // check if it has done the making for the second. (basically a control signal).
+    private boolean done = false;
+
+    private long priorityTime; // last time the priority of the chefs was checked.
+    private long lastIngChangeTime; // the last time when the ingredient changed.
+    private long lastIngCreatedTime; // the last time when ingredients were made.
 
     private AssistantChef(){}
 
@@ -85,65 +95,62 @@ class AssistantChef extends Thread {
     }
 
     public void manageIngCreation(){
-        long priorityTime = System.currentTimeMillis(); // last time the priority of the chefs was checked.
-        long lastIngTime = System.currentTimeMillis(); // the last time when the ingredient changed.
 
-        /*while (){
-            if (System.currentTimeMillis() - startTime > 2000){
-                startTime = System.currentTimeMillis();
+        if (System.currentTimeMillis() - priorityTime > 20000) { // 20 seconds for checking the priorities.
 
-            }
-        }*/
+            priorityTime = System.currentTimeMillis();
+            // mutex lock
+            Chef myPriorityChef = Chef.getHigherPriorityChef();
+            // mutex unlock
+            tempRNI = myPriorityChef.getReqNoIng();
 
-        while(true) {
-            if (System.currentTimeMillis() - priorityTime > 20000) { // 20 seconds for checking the priorities.
-
-                priorityTime = System.currentTimeMillis();
-                // mutex lock
-                Chef myPriorityChef = Chef.getHigherPriorityChef();
-                // mutex unlock
-                tempRNI = myPriorityChef.getReqNoIng();
-
-            }
-            if (System.currentTimeMillis() - lastIngTime > 2000) { // 2 seconds for changing the ingredient which is needed.
-                lastIngTime = System.currentTimeMillis();
-                changeCurrentIngredient();
-            }
-            if (System.currentTimeMillis() - lastIngTime > 1000) { // 1 second for each 5(makingSpeed) ingredients made.
-                /*for (int i = 0; i < makingSpeed; i++) {
-
-                }*/
-
-                // second implementation for 5 ing/sec
-                createIngredient();
-            }
         }
+        if (System.currentTimeMillis() - lastIngChangeTime > switchIngTime*1000) { // 2 seconds for changing the ingredient which is needed.
+            lastIngChangeTime = System.currentTimeMillis();
+            changeCurrentIngredient();
+        }
+        if (System.currentTimeMillis() - lastIngCreatedTime < 1000) { // 1 second for each 5(makingSpeed) ingredients made.
+            // second implementation for 5 ing/sec
+            if(!done)
+                createIngredient();
+        }
+        else {
+            lastIngCreatedTime = System.currentTimeMillis();
+            done = false; // reset
+        }
+
 
 
     }
 
-    public void createIngredient(){
+    private void createIngredient(){
         // mutex lock.
-        int temp = Ingredient.giveIngGetCount.get(currentIngredient)+5;
+        int temp = Ingredient.giveIngGetCount.get(currentIngredient)+makingSpeed;
+        // the break after creating 10 ingredients.
         if(temp >= 10){
             temp = 10;
         }
         Ingredient.giveIngGetCount.put(currentIngredient, temp);
+        done = true;
         // mutex unlock.
     }
 
-    private void init(){
+    private void startRestaurant(){
         // mutex lock
         Chef myPriorityChef = Chef.getHigherPriorityChef();
         // mutex unlock
         tempRNI = myPriorityChef.getReqNoIng();
+
+        priorityTime = System.currentTimeMillis();
+        lastIngChangeTime = System.currentTimeMillis();
+        lastIngCreatedTime = System.currentTimeMillis();
     }
 
     @Override
     public void run() {
-        init();
+        startRestaurant();
         // Chef.custMutex.acquire(); mutex lock
-        while(/*second implementation*/){/*Chef.customersNum > 0 first implementation.*/
+        while(/*second implementation*/Chef.isThereCustomer()){/*Chef.customersNum > 0 first implementation.*/
             // Chef.custMutex.release(); mutex unlock.
             manageIngCreation();
         }
@@ -151,7 +158,7 @@ class AssistantChef extends Thread {
 }
 
 
-public class Chef extends Thread implements Entity{
+public class Chef extends Thread /*implements Startable*/ {
     private final static Map<String, Chef> giveNameGetObject = new HashMap<>(); // get the object of the chef by having the name.
     private final static List<Chef> chefs = new ArrayList<>(); // list of chefs in the restaurant.
 
@@ -176,11 +183,14 @@ public class Chef extends Thread implements Entity{
         chefs.add(this);
     }
 
+    // checks if there are any costumers left.
     private boolean hasCustomer(){
         return customers.size() > 0;
     }
 
+    // checks if there is enough ingredients for its own sandwich.
     private void checkSufficiency(){
+        sufficientIngredients = true;
         // secondimp lock.
         for(Ingredient ing:reqNoIng.keySet()){
             // mutex lock
@@ -204,6 +214,7 @@ public class Chef extends Thread implements Entity{
         // cannot create customer because the condition is checked not to exceed the customers number.
         int id = customers.poll();
         // mutex unlock.
+        sufficientIngredients = false; // reset, should check again if it wants to create another sandwich.
 
 
     }
@@ -229,6 +240,7 @@ public class Chef extends Thread implements Entity{
 
     static Chef getHigherPriorityChef(){
         Chef highestPriority = giveNameGetObject.get("Gordon Ramsay");
+        // secondimp unlock.
         for(Chef chef:chefs){
             //mutex lock chef and highPriority.
             int csize = chef.customers.size();
@@ -238,16 +250,12 @@ public class Chef extends Thread implements Entity{
                 highestPriority = chef;
             }
         }
+        // secondimp unlock.
         return highestPriority;
     }
 
-    @Override
-    public void initRestaurant() {
-
-    }
-
-    @Override
-    public void startRestaurant() {
+    // @Override // from Entity interface. // deleted temporarily.
+    public static void startRestaurant() {
         Scanner scanner = new Scanner(System.in);
         customersNum = scanner.nextInt();
         for (int i = 0; i < customersNum; i++) {
@@ -256,6 +264,11 @@ public class Chef extends Thread implements Entity{
         }
     }
 
+    public static boolean isThereCustomer(){
+        // mutex lock.
+        return customersNum > 0;
+        // mutex unlock.
+    }
     /*public static boolean isThereCustomer(){
         for(Chef chef: chefs){
             if(chef.hasCustomer())
@@ -264,6 +277,7 @@ public class Chef extends Thread implements Entity{
         return false; // there is no customer left.
     }*/
 }
+
 
 class Ingredient{
     String name;
@@ -285,10 +299,13 @@ class Ingredient{
     }
 }
 
-interface Entity {
+
+// temporarily unavailable.
+
+/*interface Entity { 
     void initRestaurant();
     void startRestaurant();
-}
+}*/
 
 
 
