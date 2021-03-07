@@ -2,49 +2,56 @@ import java.util.*;
 public class Main{
 
     public static void main (String [] args){
-        // thread create chef
-        // thread create chef
-        // thread create ACHEF
-        // thread start chef
-        // thread start chef
-        // thread start ACHEF
+        initializeRestaurant();
+        for (Chef chef:Chef.chefs) chef.start();
+        AssistantChef.chefAssistant.start();
+        startRestaurant();
+        try {
+            for (Chef chef : Chef.chefs) chef.join();
+            AssistantChef.chefAssistant.join();
+        } catch (InterruptedException e) {
+            // e.printStackTrace();
+        }
 
 
     }
 
-    public static void initializeRestaurant(String [] args){
-        if(args != null)
+    public static void initializeRestaurant(/*String [] args*/){
+        /*if(args != null)
             if(args.length>0){
                 // if there was to be input? I mean it can
             }
             else{
 
+            }*/
 
-                Map<Ingredient, Integer>reqIng = new HashMap<>();
+        Map<Ingredient, Integer>reqIng = new HashMap<>();
 
-                reqIng.put(new Ingredient("Goosht"),1);
-                reqIng.put(new Ingredient("Goje"), 2);
-                reqIng.put(new Ingredient("Piaz"), 1);
-                reqIng.put(new Ingredient("Ketchup"),2);
-                Chef ramsy = new Chef("Gordon Ramsay", reqIng);
+        reqIng.put(new Ingredient("Goosht"),1);
+        reqIng.put(new Ingredient("Goje"), 2);
+        reqIng.put(new Ingredient("Piaz"), 1);
+        reqIng.put(new Ingredient("Ketchup"),2);
+        Chef ramsy = new Chef("Gordon Ramsay", reqIng);
 
-                reqIng.clear();
-                reqIng.put(new Ingredient("Goosht"), 2);
-                reqIng.put(new Ingredient("Piaz"), 3);
-                reqIng.put(new Ingredient("Ketchup"), 2);
-                reqIng.put(new Ingredient("Mustard"), 2);
-                Chef oliver = new Chef("Jamie Oliver", reqIng);
-
-
-
-            }
+        reqIng.clear();
+        reqIng.put(new Ingredient("Goosht"), 2);
+        reqIng.put(new Ingredient("Piaz"), 3);
+        reqIng.put(new Ingredient("Ketchup"), 2);
+        reqIng.put(new Ingredient("Mustard"), 2);
+        Chef oliver = new Chef("Jamie Oliver", reqIng);
     }
 
     public static void startRestaurant(){
-        Scanner scanner = new Scanner(System.in);
-        scanner.nextInt();
+        Chef.startRestaurant();
     }
 }
+
+
+
+
+
+
+
 
 class AssistantChef extends Thread {
 
@@ -71,16 +78,19 @@ class AssistantChef extends Thread {
 
     private AssistantChef(){}
 
-    public void changeCurrentIngredient(){
+    public void changeCurrentIngredient() throws InterruptedException {
         List<Ingredient> neededIngredients = new ArrayList<>();
+        // secondimp lock.
         for (Ingredient ing: tempRNI.keySet()){
             // mutex lock
-            int count = Ingredient.giveIngGetCount.get(ing);
+            // lock is in getCount method.
+            int count = ing.getCount();
             // mutex unlock
             if (count - tempRNI.get(ing) < 0) {
                 neededIngredients.add(ing);
             }
         }
+        // secondimp unlock.
         Ingredient ingredient = null;
         do{
 
@@ -92,12 +102,13 @@ class AssistantChef extends Thread {
 
     }
 
-    public void manageIngCreation(){
+    public void manageIngCreation() throws InterruptedException {
 
         if (System.currentTimeMillis() - priorityTime > 20000) { // 20 seconds for checking the priorities.
 
             priorityTime = System.currentTimeMillis();
             // mutex lock
+            // lock is inside the getHigherPriorityChef method.
             Chef myPriorityChef = Chef.getHigherPriorityChef();
             // mutex unlock
             tempRNI = myPriorityChef.getReqNoIng();
@@ -121,20 +132,21 @@ class AssistantChef extends Thread {
 
     }
 
-    private void createIngredient(){
-        // mutex lock.
-        int temp = Ingredient.giveIngGetCount.get(currentIngredient)+makingSpeed;
-        // the break after creating 10 ingredients.
-        if(temp >= 10){
-            temp = 10;
+    private void createIngredient() throws InterruptedException {
+        // secondimp mutex lock.
+        // lock is inside getCount method.
+        if(!(currentIngredient.getCount()>=10)) {
+
+            currentIngredient.updateIng(offset*makingSpeed);
+            done = true;
         }
-        Ingredient.giveIngGetCount.put(currentIngredient, temp);
-        done = true;
-        // mutex unlock.
+        // else take a break for the rest of remaining of the whole two seconds.
+        // secondimp mutex unlock.
     }
 
-    private void startRestaurant(){
+    private void startRestaurant() throws InterruptedException {
         // mutex lock
+        // lock is inside the getHigherPriorityChef method.
         Chef myPriorityChef = Chef.getHigherPriorityChef();
         // mutex unlock
         tempRNI = myPriorityChef.getReqNoIng();
@@ -146,24 +158,39 @@ class AssistantChef extends Thread {
 
     @Override
     public void run() {
-        startRestaurant();
-        // Chef.custMutex.acquire(); mutex lock
-        while(/*second implementation*/Chef.isThereCustomer()){/*Chef.customersNum > 0 first implementation.*/
+        try {
+            startRestaurant();
+        } catch (InterruptedException e) {
+            // e.printStackTrace();
+        }
+
+        while(/*second implementation*/true){
+            try {
+                if (!Chef.isThereCustomer()) break;
+            } catch (InterruptedException e) {
+                // e.printStackTrace();
+            }/*Chef.customersNum > 0 first implementation.*/
             // Chef.custMutex.release(); mutex unlock.
-            manageIngCreation();
+            try {
+                manageIngCreation();
+            } catch (InterruptedException e) {
+                // e.printStackTrace();
+            }
         }
     }
 }
 
 
 public class Chef extends Thread /*implements Startable*/ {
+    final static List<Chef> chefs = new ArrayList<>(); // list of chefs in the restaurant.
     private final static Map<String, Chef> giveNameGetObject = new HashMap<>(); // get the object of the chef by having the name.
-    private final static List<Chef> chefs = new ArrayList<>(); // list of chefs in the restaurant.
 
-    private static Semaphore custMutex;
 
+    private final static Semaphore custNumMutex = new Semaphore(1);
     private static int customersNum;
+    // public static Semaphore customersNum = new Semaphore(N); // secondimp
     private final Map<Ingredient, Integer> reqNoIng = new HashMap<>(); // required number of ingredients.
+    private final Semaphore custMutex = new Semaphore(1);
     private final Queue<Integer> customers = new LinkedList<>(); // id of each customer is held.
     private String name;
     private int id;
@@ -187,13 +214,12 @@ public class Chef extends Thread /*implements Startable*/ {
     }
 
     // checks if there is enough ingredients for its own sandwich.
-    private void checkSufficiency(){
+    private void checkSufficiency() throws InterruptedException {
         sufficientIngredients = true;
         // secondimp lock.
         for(Ingredient ing:reqNoIng.keySet()){
-            // mutex lock
-            int count = Ingredient.giveIngGetCount.get(ing);
-            // mutex unlock.
+            // lock is in getCount method.
+            int count = ing.getCount();
             if(count - reqNoIng.get(ing) < 0){
                 sufficientIngredients = false;
                 break;
@@ -203,14 +229,18 @@ public class Chef extends Thread /*implements Startable*/ {
 
     }
 
-    void createSandwich() {
+    void createSandwich() throws InterruptedException {
 
 
         // mutex lock.
         // output here.
+        custNumMutex.acquire();
+        custMutex.acquire();
         --customersNum;
         // cannot create customer because the condition is checked not to exceed the customers number.
         int id = customers.poll();
+        custMutex.release();
+        custNumMutex.release();
         // mutex unlock.
         sufficientIngredients = false; // reset, should check again if it wants to create another sandwich.
 
@@ -222,8 +252,18 @@ public class Chef extends Thread /*implements Startable*/ {
         while(hasCustomer()){
             // read from count if there is available consume. (createSandwich);
 
-            checkSufficiency();
-            if(sufficientIngredients) createSandwich();
+            try {
+                checkSufficiency();
+            } catch (InterruptedException e) {
+                // e.printStackTrace();
+            }
+            if(sufficientIngredients) {
+                try {
+                    createSandwich();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
         }
     }
 
@@ -236,13 +276,19 @@ public class Chef extends Thread /*implements Startable*/ {
         return reqNoIng;
     }
 
-    static Chef getHigherPriorityChef(){
+    static Chef getHigherPriorityChef() throws InterruptedException {
         Chef highestPriority = giveNameGetObject.get("Gordon Ramsay");
-        // secondimp unlock.
+        // secondimp lock.
         for(Chef chef:chefs){
             //mutex lock chef and highPriority.
+            highestPriority.custMutex.acquire();
+            chef.custMutex.acquire();
+
             int csize = chef.customers.size();
             int hpsize = highestPriority.customers.size();
+
+            chef.custMutex.release();
+            highestPriority.custMutex.release();
             // mutex unlock.
             if(csize > hpsize){
                 highestPriority = chef;
@@ -262,9 +308,12 @@ public class Chef extends Thread /*implements Startable*/ {
         }
     }
 
-    public static boolean isThereCustomer(){
+    public static boolean isThereCustomer() throws InterruptedException {
         // mutex lock.
-        return customersNum > 0;
+        custNumMutex.acquire();
+        int tempNum = customersNum;
+        custNumMutex.release();
+        return tempNum > 0;
         // mutex unlock.
     }
     /*public static boolean isThereCustomer(){
@@ -276,15 +325,19 @@ public class Chef extends Thread /*implements Startable*/ {
     }*/
 }
 
-
 class Ingredient{
+    // name of the ingredient.
     String name;
+    // default number of ingredients from the start is 2.
+    private final static int DEFAULT_NO_INGREDIENTS = 2;
     // give ingredient's name and get the number of available ingredients.
-    final static Map<Ingredient, Integer> giveIngGetCount = new HashMap<>(); // Critical Section
+    private final static Semaphore availIngMutex = new Semaphore(1);
+    private final static Map<Ingredient, Integer> giveIngGetCount = new HashMap<>(); // available ingredients. Critical Section !
+
 
     Ingredient(String name){
         this.name = name;
-        giveIngGetCount.put(this,2);
+        giveIngGetCount.put(this,DEFAULT_NO_INGREDIENTS);
     }
 
     @Override
@@ -292,8 +345,31 @@ class Ingredient{
         return name;
     }
 
-    void updateIng(Ingredient ingredient, int offset){
-        giveIngGetCount.put(ingredient,giveIngGetCount.get(ingredient)+offset);
+    @Override
+    public int hashCode() {
+        return name.hashCode();
+    }
+
+    void updateIng(int offset) throws InterruptedException {
+        // mutex lock.
+        availIngMutex.acquire();
+        giveIngGetCount.put(this,giveIngGetCount.get(this)+offset);
+        // for AssistantChef to take break.
+        if(giveIngGetCount.get(this)>10){
+            giveIngGetCount.put(this,10);
+        }
+        availIngMutex.release();
+        // mutex unlock.
+    }
+
+    int getCount() throws InterruptedException {
+        // mutex lock.
+        availIngMutex.acquire();
+        int count = giveIngGetCount.get(this);
+        availIngMutex.release();
+        //mutex unlock.
+        return count;
+
     }
 }
 
