@@ -3,9 +3,9 @@ public class Main{
 
     public static void main (String [] args){
         initializeRestaurant();
+        startRestaurant();
         for (Chef chef:Chef.chefs) chef.start();
         AssistantChef.chefAssistant.start();
-        startRestaurant();
         try {
             for (Chef chef : Chef.chefs) chef.join();
             AssistantChef.chefAssistant.join();
@@ -55,7 +55,8 @@ public class Main{
 
 class AssistantChef extends Thread {
 
-    static AssistantChef chefAssistant = new AssistantChef(); // singleton pattern.
+    // singleton pattern.
+    static AssistantChef chefAssistant = new AssistantChef();
 
     // taking the reference for ingredients needed for the high priority sandwich.
     private Map<Ingredient,Integer> tempRNI;
@@ -72,6 +73,8 @@ class AssistantChef extends Thread {
     // check if it has done the making for the second. (basically a control signal).
     private boolean done = false;
 
+    static int time = 0;
+
     private long priorityTime; // last time the priority of the chefs was checked.
     private long lastIngChangeTime; // the last time when the ingredient changed.
     private long lastIngCreatedTime; // the last time when ingredients were made.
@@ -80,6 +83,7 @@ class AssistantChef extends Thread {
 
     public void changeCurrentIngredient() throws InterruptedException {
         List<Ingredient> neededIngredients = new ArrayList<>();
+        List<Ingredient> requiredList = new ArrayList<>();
         // secondimp lock.
         for (Ingredient ing: tempRNI.keySet()){
             // mutex lock
@@ -90,13 +94,22 @@ class AssistantChef extends Thread {
                 neededIngredients.add(ing);
             }
         }
-        // secondimp unlock.
         Ingredient ingredient = null;
-        do{
+        // secondimp unlock.
+        if(neededIngredients.size()>0) {
 
-            int randIndex = (int)(Math.random()*neededIngredients.size()); // randomly choose a needed Ingredient.
-            ingredient = neededIngredients.get(randIndex); // fetch the needed ingredient.
-        }while(ingredient.equals(currentIngredient)); // check if the ingredient is not equal to the previous ingredient which was being made.
+            do {
+                int randIndex = (int) (Math.random() * neededIngredients.size()); // randomly choose a needed Ingredient.
+                ingredient = neededIngredients.get(randIndex); // fetch the needed ingredient.
+            } while (ingredient.equals(currentIngredient)); // check if the ingredient is not equal to the previous ingredient which was being made.
+        }
+        else {
+            do {
+                int randIndex = (int) (Math.random() * requiredList.size()); // randomly choose a needed Ingredient.
+                ingredient = requiredList.get(randIndex); // fetch the needed ingredient.
+            } while (ingredient.equals(currentIngredient)); // check if the ingredient is not equal to the previous ingredient which was being made.
+
+        }
 
         currentIngredient = ingredient; // change the current ingredient which is being made to the ingName.
 
@@ -126,6 +139,10 @@ class AssistantChef extends Thread {
         else {
             lastIngCreatedTime = System.currentTimeMillis();
             done = false; // reset
+            ++time;
+            System.out.println("time = "+ time);
+            System.out.println("System time = " + System.currentTimeMillis());
+
         }
 
 
@@ -160,22 +177,16 @@ class AssistantChef extends Thread {
     public void run() {
         try {
             startRestaurant();
+
+
+            while (/*second implementation*/true) {
+
+                if (!Chef.isThereCustomer()) break;
+                manageIngCreation();
+
+            }
         } catch (InterruptedException e) {
             // e.printStackTrace();
-        }
-
-        while(/*second implementation*/true){
-            try {
-                if (!Chef.isThereCustomer()) break;
-            } catch (InterruptedException e) {
-                // e.printStackTrace();
-            }/*Chef.customersNum > 0 first implementation.*/
-            // Chef.custMutex.release(); mutex unlock.
-            try {
-                manageIngCreation();
-            } catch (InterruptedException e) {
-                // e.printStackTrace();
-            }
         }
     }
 }
@@ -188,10 +199,12 @@ public class Chef extends Thread /*implements Startable*/ {
 
     private final static Semaphore custNumMutex = new Semaphore(1);
     private static int customersNum;
+    private static int N; // this number doesn't change after initialization.
     // public static Semaphore customersNum = new Semaphore(N); // secondimp
     private final Map<Ingredient, Integer> reqNoIng = new HashMap<>(); // required number of ingredients.
     private final Semaphore custMutex = new Semaphore(1);
     private final Queue<Integer> customers = new LinkedList<>(); // id of each customer is held.
+
     private String name;
     private int id;
     private int offset = -1;
@@ -206,6 +219,7 @@ public class Chef extends Thread /*implements Startable*/ {
         reqNoIng.putAll(ingredients);
         id = chefs.size();
         chefs.add(this);
+        giveNameGetObject.put(name, this);
     }
 
     // checks if there are any costumers left.
@@ -236,9 +250,10 @@ public class Chef extends Thread /*implements Startable*/ {
         // output here.
         custNumMutex.acquire();
         custMutex.acquire();
-        --customersNum;
+        int index = N - (--customersNum);
         // cannot create customer because the condition is checked not to exceed the customers number.
         int id = customers.poll();
+        System.out.println(index + "-" + id + "-" + name + "-");
         custMutex.release();
         custNumMutex.release();
         // mutex unlock.
@@ -302,6 +317,7 @@ public class Chef extends Thread /*implements Startable*/ {
     public static void startRestaurant() {
         Scanner scanner = new Scanner(System.in);
         customersNum = scanner.nextInt();
+        N = customersNum;
         for (int i = 0; i < customersNum; i++) {
             chefs.get(scanner.nextInt()-1) // take the id of the chef from the input.
                     .customers.add(i); // i is the id of the customer.
@@ -332,7 +348,7 @@ class Ingredient{
     private final static int DEFAULT_NO_INGREDIENTS = 2;
     // give ingredient's name and get the number of available ingredients.
     private final static Semaphore availIngMutex = new Semaphore(1);
-    private final static Map<Ingredient, Integer> giveIngGetCount = new HashMap<>(); // available ingredients. Critical Section !
+    final static Map<Ingredient, Integer> giveIngGetCount = new HashMap<>(); // available ingredients. Critical Section !
 
 
     Ingredient(String name){
