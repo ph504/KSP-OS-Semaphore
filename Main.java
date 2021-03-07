@@ -46,8 +46,6 @@ public class Main{
     }
 }
 
-import java.util.*;
-
 class AssistantChef extends Thread {
 
     static AssistantChef chefAssistant = new AssistantChef(); // singleton pattern.
