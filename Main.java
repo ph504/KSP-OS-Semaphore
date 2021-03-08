@@ -178,6 +178,8 @@ class AssistantChef extends Thread {
         else
             tempRNI = CustomerManager.gordonReq;
 
+        changeCurrentIngredient();
+
         priorityTime = System.currentTimeMillis();
         lastIngChangeTime = System.currentTimeMillis();
         lastIngCreatedTime = System.currentTimeMillis();
@@ -466,6 +468,3 @@ class Time {
     static Semaphore timeMutex = new Semaphore(1);
     static int time = 0;
 }
-
-
-
