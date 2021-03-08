@@ -1,4 +1,6 @@
 import java.util.*;
+import java.util.concurrent.Semaphore;
+
 public class Main{
 
     public static void main (String [] args){
@@ -62,8 +64,6 @@ class AssistantChef extends Thread {
     private Map<Ingredient,Integer> tempRNI;
     // the current ingredient which is being made under 2 seconds.
     private Ingredient currentIngredient;
-    // check if there is any customers left.
-    private boolean allCustomersServed = false;
     // offset is for creating the ingredients.
     private int offset = 1;
     // the rate of making ingredients (number of ingredients made per second).
@@ -122,9 +122,14 @@ class AssistantChef extends Thread {
             priorityTime = System.currentTimeMillis();
             // mutex lock
             // lock is inside the getHigherPriorityChef method.
-            Chef myPriorityChef = Chef.getHigherPriorityChef();
+            // Chef myPriorityChef = Chef.getHigherPriorityChef();
+            int id = CustomerManager.getHigherPriorityChef();
+            if(id > 0)
+                tempRNI = CustomerManager.jamieReq;
+            else
+                tempRNI = CustomerManager.gordonReq;
             // mutex unlock
-            tempRNI = myPriorityChef.getReqNoIng();
+            // tempRNI = myPriorityChef.getReqNoIng();
 
         }
         if (System.currentTimeMillis() - lastIngChangeTime > switchIngTime*1000) { // 2 seconds for changing the ingredient which is needed.
@@ -164,9 +169,14 @@ class AssistantChef extends Thread {
     private void startRestaurant() throws InterruptedException {
         // mutex lock
         // lock is inside the getHigherPriorityChef method.
-        Chef myPriorityChef = Chef.getHigherPriorityChef();
+        // Chef myPriorityChef = Chef.getHigherPriorityChef();
         // mutex unlock
-        tempRNI = myPriorityChef.getReqNoIng();
+        int id = CustomerManager.getHigherPriorityChef();
+        CustomerManager.chefCustMutex.release();
+        if(id>0)
+            tempRNI =  CustomerManager.jamieReq;
+        else
+            tempRNI = CustomerManager.gordonReq;
 
         priorityTime = System.currentTimeMillis();
         lastIngChangeTime = System.currentTimeMillis();
@@ -181,7 +191,7 @@ class AssistantChef extends Thread {
 
             while (/*second implementation*/true) {
 
-                if (!Chef.isThereCustomer()) break;
+                if (!(CustomerManager.customersNum > 0)) break;
                 manageIngCreation();
 
             }
@@ -220,6 +230,12 @@ class Chef extends Thread /*implements Startable*/ {
         id = chefs.size();
         chefs.add(this);
         giveNameGetObject.put(name, this);
+        if(id>0){
+            CustomerManager.jamieReq.putAll(ingredients);
+        }
+        else
+            CustomerManager.gordonReq.putAll(ingredients);
+
     }
 
     // checks if there are any costumers left.
@@ -247,18 +263,33 @@ class Chef extends Thread /*implements Startable*/ {
 
 
         // mutex lock.
-        // output here.
-        custNumMutex.acquire();
+        // custNumMutex.acquire();
         custMutex.acquire();
         // bug fix
         for(Ingredient ing:reqNoIng.keySet()){
             ing.updateIng(offset*reqNoIng.get(ing));
         }
+        // mutex lock.
+        CustomerManager.custNumMutex.acquire();
+        int index = N - (--CustomerManager.customersNum);
+        CustomerManager.custNumMutex.release();
+        // mutex unlock.
 
-        int index = N - (--customersNum);
         // cannot create customer because the condition is checked not to exceed the customers number.
         int id = customers.poll();
-        System.out.println(index + "-" + id + "-" + name + "-" + AssistantChef.time);
+
+        // mutex lock.
+        CustomerManager.chefCustMutex.acquire();
+        --(CustomerManager.chefCustomers[id]);
+        CustomerManager.chefCustMutex.release();
+        // mutex unlock.
+
+        // bug fix.
+        // output here.
+        Time.timeMutex.acquire();
+        System.out.println(index + "-" + id + "-" + name + "-" + Time.time);
+        Time.timeMutex.release();
+
         custMutex.release();
         custNumMutex.release();
         // mutex unlock.
@@ -296,7 +327,7 @@ class Chef extends Thread /*implements Startable*/ {
         return reqNoIng;
     }
 
-    static Chef getHigherPriorityChef() throws InterruptedException {
+    /*static Chef getHigherPriorityChef() throws InterruptedException {
         Chef highestPriority = giveNameGetObject.get("Gordon Ramsay");
         // secondimp lock.
         for(Chef chef:chefs){
@@ -316,16 +347,19 @@ class Chef extends Thread /*implements Startable*/ {
         }
         // secondimp unlock.
         return highestPriority;
-    }
+    }*/
 
     // @Override // from Entity interface. // deleted temporarily.
     public static void startRestaurant() {
         Scanner scanner = new Scanner(System.in);
         customersNum = scanner.nextInt();
+        CustomerManager.customersNum = customersNum;
         N = customersNum;
         for (int i = 0; i < customersNum; i++) {
-            chefs.get(scanner.nextInt()-1) // take the id of the chef from the input.
+            int chefID = scanner.nextInt()-1;
+            chefs.get(chefID) // take the id of the chef from the input.
                     .customers.add(i); // i is the id of the customer.
+            ++(CustomerManager.chefCustomers[chefID]);
         }
     }
 
@@ -402,6 +436,36 @@ class Ingredient{
     void startRestaurant();
 }*/
 
+class CustomerManager {
+    static Semaphore custNumMutex = new Semaphore(1);
+    static int customersNum = 0;
+    static Semaphore chefCustMutex = new Semaphore(1);
+    static int [] chefCustomers = new int [2]; // number of chefs is 2.
+
+
+    // for AssistantChef to use. // menu
+    static final Map<Ingredient, Integer> gordonReq = new HashMap<>(); // required number of ingredients. Gordon id = 0.
+    static final Map<Ingredient, Integer> jamieReq = new HashMap<>(); // required number of ingredients. Jamie id = 1.
+
+    static int getHigherPriorityChef() throws InterruptedException {
+        chefCustMutex.acquire();
+        if(chefCustomers[0]<chefCustomers[1]){ // Gordon < Jamie ?
+            return 1; // Jamie
+        }
+        else
+            return 0; // Gordon
+    }
+
+
+
+
+}
+
+// bug fix.
+class Time {
+    static Semaphore timeMutex = new Semaphore(1);
+    static int time = 0;
+}
 
 
 
