@@ -124,6 +124,7 @@ class AssistantChef extends Thread {
             // lock is inside the getHigherPriorityChef method.
             // Chef myPriorityChef = Chef.getHigherPriorityChef();
             int id = CustomerManager.getHigherPriorityChef();
+            CustomerManager.chefCustMutex.release();
             if(id > 0)
                 tempRNI = CustomerManager.jamieReq;
             else
@@ -144,10 +145,18 @@ class AssistantChef extends Thread {
         else {
             lastIngCreatedTime = System.currentTimeMillis();
             done = false; // reset
-            ++time;
+            // mutex lock.
+            Time.timeMutex.acquire();
+            ++Time.time;
+            Time.timeMutex.release();
+            // mutex unlock.
             /*System.out.println("time = "+ time);
             System.out.println("System time = " + System.currentTimeMillis());*/
 
+        }
+
+        if(Time.time - priorityTime > 20){
+            priorityTime = Time.time;
         }
 
 
@@ -466,5 +475,5 @@ class CustomerManager {
 // bug fix.
 class Time {
     static Semaphore timeMutex = new Semaphore(1);
-    static int time = 0;
+    static long time = 0;
 }
