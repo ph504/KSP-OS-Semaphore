@@ -117,47 +117,74 @@ class AssistantChef extends Thread {
 
     public void manageIngCreation() throws InterruptedException {
 
-        if (System.currentTimeMillis() - priorityTime > 20000) { // 20 seconds for checking the priorities.
+        // if (System.currentTimeMillis() - priorityTime > 20000) { // 20 seconds for checking the priorities.
 
-            priorityTime = System.currentTimeMillis();
+        //     priorityTime = System.currentTimeMillis();
+        //     // mutex lock
+        //     // lock is inside the getHigherPriorityChef method.
+        //     // Chef myPriorityChef = Chef.getHigherPriorityChef();
+        //     int id = CustomerManager.getHigherPriorityChef();
+        //     CustomerManager.chefCustMutex.release();
+        //     if(id > 0)
+        //         tempRNI = CustomerManager.jamieReq;
+        //     else
+        //         tempRNI = CustomerManager.gordonReq;
+        //     // mutex unlock
+        //     // tempRNI = myPriorityChef.getReqNoIng();
+
+        // }
+        // if (System.currentTimeMillis() - lastIngChangeTime > switchIngTime*1000) { // 2 seconds for changing the ingredient which is needed.
+        //     lastIngChangeTime = System.currentTimeMillis();
+        //     changeCurrentIngredient();
+        // }
+        // if (System.currentTimeMillis() - lastIngCreatedTime < 1000) { // 1 second for each 5(makingSpeed) ingredients made.
+        //     // second implementation for 5 ing/sec
+        //     if(!done)
+        //         createIngredient();
+        // }
+        // else {
+        //     lastIngCreatedTime = System.currentTimeMillis();
+        //     done = false; // reset
+        //     // mutex lock.
+        //     Time.timeMutex.acquire();
+        //     ++Time.time;
+        //     Time.timeMutex.release();
+        //     // mutex unlock.
+        //     /*System.out.println("time = "+ time);
+        //     System.out.println("System time = " + System.currentTimeMillis());*/
+
+        // }
+
+        if(Time.time - priorityTime >= 20){ // possible bug?
+            priorityTime = Time.time;
             // mutex lock
             // lock is inside the getHigherPriorityChef method.
-            // Chef myPriorityChef = Chef.getHigherPriorityChef();
             int id = CustomerManager.getHigherPriorityChef();
             CustomerManager.chefCustMutex.release();
+            // mutex unlock
             if(id > 0)
                 tempRNI = CustomerManager.jamieReq;
             else
                 tempRNI = CustomerManager.gordonReq;
-            // mutex unlock
-            // tempRNI = myPriorityChef.getReqNoIng();
-
+            
         }
-        if (System.currentTimeMillis() - lastIngChangeTime > switchIngTime*1000) { // 2 seconds for changing the ingredient which is needed.
-            lastIngChangeTime = System.currentTimeMillis();
+        if(Time.time - lastIngChangeTime >= switchIngTime){ // possible bug?
+            lastIngChangeTime = Time.time;
             changeCurrentIngredient();
         }
-        if (System.currentTimeMillis() - lastIngCreatedTime < 1000) { // 1 second for each 5(makingSpeed) ingredients made.
-            // second implementation for 5 ing/sec
+        if(Time.time - lastIngCreatedTime < 1){ // possible bug?
             if(!done)
                 createIngredient();
         }
-        else {
-            lastIngCreatedTime = System.currentTimeMillis();
-            done = false; // reset
-            // mutex lock.
-            Time.timeMutex.acquire();
-            ++Time.time;
-            Time.timeMutex.release();
-            // mutex unlock.
-            /*System.out.println("time = "+ time);
-            System.out.println("System time = " + System.currentTimeMillis());*/
-
+        else{
+            lastIngCreatedTime = Time.time;
+            done = false;            
         }
-
-        if(Time.time - priorityTime > 20){
-            priorityTime = Time.time;
-        }
+        // mutex lock.
+        Time.timeMutex.acquire();
+        ++Time.time;
+        Time.timeMutex.release();
+        // mutex unlock.
 
 
 
@@ -189,9 +216,12 @@ class AssistantChef extends Thread {
 
         changeCurrentIngredient();
 
-        priorityTime = System.currentTimeMillis();
-        lastIngChangeTime = System.currentTimeMillis();
-        lastIngCreatedTime = System.currentTimeMillis();
+        // priorityTime = System.currentTimeMillis();
+        // lastIngChangeTime = System.currentTimeMillis();
+        // lastIngCreatedTime = System.currentTimeMillis();
+        priorityTime = Time.time;
+        lastIngChangeTime = Time.time;
+        lastIngCreatedTime = Time.time;
     }
 
     @Override
