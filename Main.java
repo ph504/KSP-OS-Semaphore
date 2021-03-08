@@ -140,8 +140,8 @@ class AssistantChef extends Thread {
             lastIngCreatedTime = System.currentTimeMillis();
             done = false; // reset
             ++time;
-            System.out.println("time = "+ time);
-            System.out.println("System time = " + System.currentTimeMillis());
+            /*System.out.println("time = "+ time);
+            System.out.println("System time = " + System.currentTimeMillis());*/
 
         }
 
@@ -192,7 +192,7 @@ class AssistantChef extends Thread {
 }
 
 
-public class Chef extends Thread /*implements Startable*/ {
+class Chef extends Thread /*implements Startable*/ {
     final static List<Chef> chefs = new ArrayList<>(); // list of chefs in the restaurant.
     private final static Map<String, Chef> giveNameGetObject = new HashMap<>(); // get the object of the chef by having the name.
 
@@ -250,10 +250,15 @@ public class Chef extends Thread /*implements Startable*/ {
         // output here.
         custNumMutex.acquire();
         custMutex.acquire();
+        // bug fix
+        for(Ingredient ing:reqNoIng.keySet()){
+            ing.updateIng(offset*reqNoIng.get(ing));
+        }
+
         int index = N - (--customersNum);
         // cannot create customer because the condition is checked not to exceed the customers number.
         int id = customers.poll();
-        System.out.println(index + "-" + id + "-" + name + "-");
+        System.out.println(index + "-" + id + "-" + name + "-" + AssistantChef.time);
         custMutex.release();
         custNumMutex.release();
         // mutex unlock.
